@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>热更新平台方案介绍</title>
+<!-- 方案展示页：单文件、无外部依赖，可直接双击打开或部署为静态页面；内容与 docs/FLOW_AND_ROADMAP.md 保持一致 -->
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --text: #1d2129;
+    --text-2: #4e5969;
+    --text-3: #86909c;
+    --line: #e5e6eb;
+    --accent: #2b6cf6;
+    --accent-soft: #eaf1ff;
+    --good: #1f9d55;
+    --good-soft: #e8f6ee;
+    --warn: #c27c0e;
+    --warn-soft: #fdf4e3;
+    --bad: #c4392d;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    font-size: 15px;
+  }
+  .page { max-width: 1120px; margin: 0 auto; padding: 0 24px 64px; }
+  nav {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(246, 247, 249, 0.92);
+    backdrop-filter: blur(6px);
+    border-bottom: 1px solid var(--line);
+  }
+  nav .inner { max-width: 1120px; margin: 0 auto; padding: 10px 24px; display: flex; gap: 20px; flex-wrap: wrap; }
+  nav a { color: var(--text-2); text-decoration: none; font-size: 14px; }
+  nav a:hover { color: var(--accent); }
+  section { margin-top: 56px; }
+  h1 { font-size: 34px; line-height: 1.3; }
+  h2 { font-size: 24px; margin-bottom: 6px; }
+  h3 { font-size: 17px; margin-bottom: 6px; }
+  .sub { color: var(--text-2); margin-bottom: 20px; }
+  .small { font-size: 13px; color: var(--text-3); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 20px; }
+  .grid { display: grid; gap: 16px; }
+  .g2 { grid-template-columns: repeat(2, 1fr); }
+  .g3 { grid-template-columns: repeat(3, 1fr); }
+  .g4 { grid-template-columns: repeat(4, 1fr); }
+
+  /* 首屏 */
+  .hero { padding-top: 56px; }
+  .hero .tag { display: inline-block; font-size: 13px; color: var(--accent); background: var(--accent-soft); padding: 2px 10px; border-radius: 99px; margin-bottom: 14px; }
+  .hero p { font-size: 17px; color: var(--text-2); margin-top: 12px; max-width: 760px; }
+  .kpis { margin-top: 28px; }
+  .kpi .v { font-size: 22px; font-weight: 600; color: var(--accent); }
+  .kpi .l { color: var(--text-2); font-size: 14px; }
+
+  /* 发布流程 */
+  .flow { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0; align-items: stretch; }
+  .step { position: relative; padding: 0 10px; }
+  .step .box { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; height: 100%; }
+  .step.key .box { border-color: var(--accent); background: var(--accent-soft); }
+  .step:not(:last-child)::after {
+    content: ""; position: absolute; right: -6px; top: 50%;
+    border: 6px solid transparent; border-left-color: var(--text-3); transform: translateY(-50%);
+  }
+  .step .no { font-size: 12px; color: var(--text-3); }
+  .actor { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 99px; margin: 6px 0; }
+  .actor.dev { background: #f2f3f5; color: var(--text-2); }
+  .actor.auto { background: var(--good-soft); color: var(--good); }
+  .actor.qa { background: var(--warn-soft); color: var(--warn); }
+  .actor.lead { background: var(--accent); color: #fff; }
+  .step .t { font-weight: 600; }
+  .step .d { font-size: 13px; color: var(--text-2); margin-top: 4px; }
+  .stop { margin-top: 16px; border-left: 3px solid var(--warn); background: var(--warn-soft); padding: 12px 16px; border-radius: 6px; }
+
+  /* 架构 */
+  .arch { display: grid; grid-template-columns: 1fr 90px 1.3fr 90px 1fr; align-items: center; }
+  .arch .col h3 { margin-bottom: 10px; }
+  .arch .col.main { border-color: var(--accent); }
+  .arch .col.main h3 { color: var(--accent); }
+  .arch .item { border-top: 1px solid var(--line); padding: 8px 0; }
+  .arch .item b { display: block; font-size: 14px; }
+  .arch .item span { font-size: 13px; color: var(--text-2); }
+  .link { text-align: center; font-size: 12px; color: var(--text-3); }
+  .wire { position: relative; height: 2px; background: var(--line); margin: 10px 6px 0; overflow: hidden; }
+  .wire i { position: absolute; top: -3px; left: -8px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: packet 2.4s linear infinite; }
+  .wire i:nth-child(2) { animation-delay: 0.8s; }
+  .wire i:nth-child(3) { animation-delay: 1.6s; }
+  @keyframes packet { from { left: -8px; } to { left: 100%; } }
+
+  /* 进场动画：由脚本给元素加 reveal，进入视口后加 in */
+  .reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.6s ease, transform 0.6s ease; }
+  .reveal.in { opacity: 1; transform: none; }
+
+  /* 发布流程逐步点亮 */
+  .step .box { transition: border-color 0.4s, background 0.4s, transform 0.4s; }
+  .step.passed .box { border-color: #b9cdfb; }
+  .step.active .box { border-color: var(--accent); background: var(--accent-soft); transform: translateY(-6px); }
+  .track { position: relative; height: 4px; background: var(--line); border-radius: 2px; margin-top: 18px; }
+  .track .bar { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--accent); border-radius: 2px; transition: width 0.8s ease; }
+  .track .dot { position: absolute; top: 50%; left: 0; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); border: 4px solid var(--accent-soft); transform: translate(-50%, -50%); transition: left 0.8s ease; }
+
+  /* 灰度与回退演示 */
+  .demo { margin-top: 20px; display: grid; grid-template-columns: 1fr 1.4fr; gap: 24px; align-items: center; }
+  .demo .stage { font-size: 20px; font-weight: 600; min-height: 32px; transition: color 0.3s; }
+  .demo .stage.warn { color: var(--bad); }
+  .demo .desc { color: var(--text-2); font-size: 14px; min-height: 44px; }
+  .demo .phases { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+  .demo .phases span { font-size: 12px; padding: 2px 10px; border-radius: 99px; background: #f2f3f5; color: var(--text-3); transition: all 0.3s; }
+  .demo .phases span.on { background: var(--accent); color: #fff; }
+  .demo .phases span.on.warn { background: var(--bad); }
+  .devices { display: grid; grid-template-columns: repeat(20, 1fr); gap: 5px; }
+  .devices i { aspect-ratio: 1; border-radius: 3px; background: var(--line); transition: background 0.35s; }
+  .devices i.new { background: var(--accent); }
+  .devices i.back { background: var(--good); }
+  .legend { display: flex; gap: 16px; margin-top: 10px; font-size: 12px; color: var(--text-3); }
+  .legend b { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+
+  /* 路线图：下一步脉冲提示 */
+  .batch.next { animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { background: var(--card); } 50% { background: var(--accent-soft); } }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    .reveal { opacity: 1; transform: none; }
+  }
+
+  /* 对比表 */
+  table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); font-size: 14px; vertical-align: top; }
+  th { background: #fafbfc; color: var(--text-2); font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+  td.ours { background: var(--accent-soft); }
+  th.ours { background: var(--accent); color: #fff; }
+  .y { color: var(--good); font-weight: 600; }
+  .n { color: var(--bad); font-weight: 600; }
+  .p { color: var(--warn); font-weight: 600; }
+
+  /* 优势卡片 */
+  .adv .card h3 { display: flex; align-items: center; gap: 8px; }
+  .adv .num { width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .adv .card p { color: var(--text-2); font-size: 14px; }
+  .adv .vs { margin-top: 10px; font-size: 13px; color: var(--text-3); border-top: 1px dashed var(--line); padding-top: 8px; }
+
+  /* 路线图 */
+  .phase { margin-bottom: 18px; }
+  .phase .head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .batches { display: grid; gap: 6px; }
+  .batch { border-radius: 8px; padding: 10px; font-size: 13px; border: 1px solid var(--line); background: #f2f3f5; color: var(--text-2); }
+  .batch .s { font-size: 12px; opacity: 0.85; }
+  .batch b { display: block; margin-top: 2px; }
+  .batch.done { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .batch.next { background: var(--card); border-color: var(--accent); color: var(--accent); }
+
+  .note { font-size: 13px; color: var(--text-3); margin-top: 10px; }
+  footer { margin-top: 64px; color: var(--text-3); font-size: 13px; border-top: 1px solid var(--line); padding-top: 16px; }
+
+  @media (max-width: 860px) {
+    .g2, .g3, .g4 { grid-template-columns: 1fr; }
+    .flow { grid-template-columns: 1fr; gap: 12px; }
+    .step:not(:last-child)::after { display: none; }
+    .arch { grid-template-columns: 1fr; gap: 12px; }
+    .track { display: none; }
+    .demo { grid-template-columns: 1fr; }
+  }
+  @media print {
+    nav { display: none; }
+    body { background: #fff; }
+    section { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="inner">
+    <a href="#flow">发布流程</a>
+    <a href="#arch">系统组成</a>
+    <a href="#platforms">三端统一</a>
+    <a href="#codepush">对比 CodePush</a>
+    <a href="#market">对比其他平台</a>
+    <a href="#gap">当前短板</a>
+    <a href="#roadmap">实施路线</a>
+    <a href="#decide">待确认</a>
+  </div>
+</nav>
+
+<div class="page">
+
+  <!-- 首屏：一句话价值 -->
+  <section class="hero">
+    <span class="tag">自建热更新与发布平台 · iOS / Android / H5</span>
+    <h1>开发只提交代码，<br>网页审批即可安全地推送到用户手机</h1>
+    <p>App 的 JS 改动无需重新提交应用商店审核，H5 网站同样按比例灰度上线。平台负责自动打包、加密、灰度发布与一键回退，三端、多个产品统一管理，数据和服务完全掌握在自己手里。</p>
+    <div class="grid g4 kpis">
+      <div class="card kpi"><div class="v">0 步</div><div class="l">开发除提交代码外无需任何发布操作</div></div>
+      <div class="card kpi"><div class="v">绕过商店审核</div><div class="l">JS 改动直接推送，原生改动仍走整包</div></div>
+      <div class="card kpi"><div class="v">灰度 + 一键回退</div><div class="l">按比例放量，出问题设备自动回到可用版本</div></div>
+      <div class="card kpi"><div class="v">三端 + 多品牌</div><div class="l">iOS、Android、H5 一个平台管理，品牌间相互隔离</div></div>
+    </div>
+  </section>
+
+  <!-- 发布流程 -->
+  <section id="flow">
+    <h2>发布流程</h2>
+    <p class="sub">从提交代码到全量上线，每一步都有人负责、有记录可查。</p>
+    <div class="flow">
+      <div class="step"><div class="box"><div class="no">01</div><span class="actor dev">开发</span><div class="t">提交代码</div><div class="d">git push 到指定分支，或在网页选提交点「打包」</div></div></div>
+      <div class="step"><div class="box"><div class="no">02</div><span class="actor auto">系统自动</span><div class="t">打包加密</div><div class="d">GitLab 流水线编译字节码、签名、加密</div></div></div>
+      <div class="step"><div class="box"><div class="no">03</div><span class="actor auto">系统自动</span><div class="t">发到测试通道</div><div class="d">只有测试设备能收到</div></div></div>
+      <div class="step"><div class="box"><div class="no">04</div><span class="actor qa">测试</span><div class="t">验证通过</div><div class="d">在网页提交推广申请，附测试说明</div></div></div>
+      <div class="step key"><div class="box"><div class="no">05</div><span class="actor lead">发布负责人</span><div class="t">网页审批</div><div class="d">批准或驳回，申请人不能审批自己</div></div></div>
+      <div class="step"><div class="box"><div class="no">06</div><span class="actor auto">系统自动</span><div class="t">灰度上线</div><div class="d">10% → 50% → 100%，实时看安装与回滚数据</div></div></div>
+    </div>
+    <div class="track"><div class="bar"></div><div class="dot"></div></div>
+    <div class="card demo">
+      <div>
+        <div class="small">演示：灰度放量与一键回退（示意动画）</div>
+        <div class="stage" id="demoStage">准备发布</div>
+        <div class="desc" id="demoDesc">每个方块代表一批用户设备</div>
+        <div class="phases" id="demoPhases">
+          <span>10%</span><span>50%</span><span>100%</span><span>发现问题</span><span>一键回退</span>
+        </div>
+      </div>
+      <div>
+        <div class="devices" id="devices"></div>
+        <div class="legend">
+          <span><b style="background: var(--line)"></b>旧版本</span>
+          <span><b style="background: var(--accent)"></b>已收到新版本</span>
+          <span><b style="background: var(--good)"></b>已回到可用版本</span>
+        </div>
+      </div>
+    </div>
+    <div class="stop">
+      <b>出现问题，一键止损：</b>网页一键禁用版本或回到安装包内置版本，用户设备自动回退；止损操作不需要审批，但全程留痕。新包启动即崩溃时，设备在下次启动时自动回滚，无需人工介入。
+    </div>
+  </section>
+
+  <!-- 系统组成 -->
+  <section id="arch">
+    <h2>系统组成</h2>
+    <p class="sub">复用公司已有的 GitLab，只新增一个自建平台；签名私钥不存放在平台，平台即使被攻破也无法伪造更新包。</p>
+    <div class="arch">
+      <div class="card col">
+        <h3>GitLab（已有）</h3>
+        <div class="item"><b>代码仓库</b><span>开发提交代码</span></div>
+        <div class="item"><b>流水线</b><span>自动打包、签名、上传</span></div>
+      </div>
+      <div class="link">上传加密包<br>回传构建状态<div class="wire"><i></i><i></i><i></i></div></div>
+      <div class="card col main">
+        <h3>热更新平台（自建，Docker 部署）</h3>
+        <div class="item"><b>网页控制台</b><span>打包、审批、灰度、禁用、数据统计、设备排查</span></div>
+        <div class="item"><b>服务端 + 数据库</b><span>项目、通道、版本、构建记录、设备上报</span></div>
+        <div class="item"><b>云存储 + CDN</b><span>阿里云 OSS / 腾讯云 COS，国内就近下载</span></div>
+      </div>
+      <div class="link">检查更新<br>下载加密包<div class="wire"><i></i><i></i><i></i></div></div>
+      <div class="card col">
+        <h3>各产品（App 与 H5）</h3>
+        <div class="item"><b>产品 A</b><span>iOS / Android App</span></div>
+        <div class="item"><b>产品 B</b><span>iOS / Android App</span></div>
+        <div class="item"><b>H5 站点</b><span>浏览器直接访问，按用户灰度</span></div>
+        <div class="item"><b>更多品牌</b><span>一个品牌一个项目，互不影响</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 三端统一 -->
+  <section id="platforms">
+    <h2>三端统一：iOS、Android、H5</h2>
+    <p class="sub">审批、灰度、白名单、一键回退、操作记录、控制台与流水线三端共用一套，只有下发方式按端区分。</p>
+    <div class="grid g3">
+      <div class="card">
+        <h3>iOS</h3>
+        <p class="small">App 内 SDK 检查、下载、校验并安装新包；新包崩溃自动回滚。</p>
+        <div class="vs small" style="margin-top: 10px">状态：一期已完成</div>
+      </div>
+      <div class="card">
+        <h3>Android</h3>
+        <p class="small">与 iOS 同一套机制与安全措施，服务端与打包命令已预留支持。</p>
+        <div class="vs small" style="margin-top: 10px">状态：阶段一完成后紧接着开发</div>
+      </div>
+      <div class="card">
+        <h3>H5 网站</h3>
+        <p class="small">用户访问时，平台按灰度比例与白名单为其选择版本；同一用户始终看到同一版本，禁用后刷新即回到上一版本，无需安装任何 SDK。</p>
+        <div class="vs small" style="margin-top: 10px">状态：Android 之后开发</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 对比老 CodePush -->
+  <section id="codepush">
+    <h2>相比老的 CodePush，好在哪里</h2>
+    <p class="sub">CodePush 是微软的热更新服务，所在的 App Center 已于 2025 年 3 月停止服务；继续使用只能依赖社区维护的自建版本。</p>
+    <div class="grid g3 adv">
+      <div class="card"><h3><span class="num">1</span>不会被停服卡脖子</h3><p>平台与 SDK 全部自研自建，代码和数据都在自己手里，可随 React Native 新版本持续升级。</p><div class="vs">CodePush：官方服务已停，SDK 不再更新</div></div>
+      <div class="card"><h3><span class="num">2</span>包内容加密，防止源码泄露</h3><p>每个版本一把随机密钥加密，CDN 上的文件即使被下载也无法还原 JS 代码；同时强制签名，防止被篡改。</p><div class="vs">CodePush：包是普通压缩文件，签名为可选项</div></div>
+      <div class="card"><h3><span class="num">3</span>开发零操作，网页控制发布</h3><p>提交代码自动打包到测试通道，网页也可选任意提交打包，不需要开发在本机执行命令。</p><div class="vs">CodePush：需要开发在本机或自建脚本执行发布命令</div></div>
+      <div class="card"><h3><span class="num">4</span>上线必须审批</h3><p>推到正式环境必须由发布负责人在网页审批，申请人不能自审，所有操作留记录。</p><div class="vs">CodePush：有权限即可直接推广，无审批流程</div></div>
+      <div class="card"><h3><span class="num">5</span>精细化排查</h3><p>白名单设备可提前体验；按设备 ID 查询检查与安装记录，快速定位个别用户问题。</p><div class="vs">CodePush：只有汇总数字，无法查单台设备</div></div>
+      <div class="card"><h3><span class="num">6</span>国内速度与数据合规</h3><p>服务与 CDN 部署在国内云，下载更快；设备数据不出境。</p><div class="vs">CodePush：服务器在海外，国内访问慢、不稳定</div></div>
+    </div>
+    <div class="card adv" style="margin-top: 16px">
+      <h3><span class="num">7</span>App 与 H5 一个平台发布</h3>
+      <p>iOS、Android、H5 共用审批、灰度、回退与数据统计，团队只需学一套流程。</p>
+      <div class="vs">CodePush：只支持 React Native App，H5 灰度需另找方案</div>
+    </div>
+    <p class="note">与 CodePush 同等具备：按比例灰度、新包崩溃自动回滚、Hermes 字节码、可选/立即/下次启动三种生效方式。</p>
+  </section>
+
+  <!-- 对比其他平台 -->
+  <section id="market">
+    <h2>与其他主流平台对比</h2>
+    <p class="sub">综合来看，我们是唯一同时做到「自建可控 + 包加密 + 审批 + 网页触发打包」的方案。</p>
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 18%">能力</th>
+          <th class="ours" style="width: 20%">我们的平台</th>
+          <th>CodePush（已停服）</th>
+          <th>Expo EAS Update</th>
+          <th>Pushy（国内 SaaS）</th>
+          <th>开源 code-push-server</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>支持端</td><td class="ours"><span class="y">iOS / Android / H5</span></td><td>iOS / Android</td><td>iOS / Android</td><td>iOS / Android</td><td>iOS / Android</td></tr>
+        <tr><td>部署方式</td><td class="ours"><span class="y">自建</span>，数据自有</td><td>微软云，已停服</td><td>Expo 云</td><td>第三方云</td><td><span class="y">自建</span></td></tr>
+        <tr><td>费用</td><td class="ours"><span class="y">只有服务器与 CDN 成本</span></td><td>—</td><td>按月活用户计费</td><td>按套餐计费</td><td>服务器成本</td></tr>
+        <tr><td>国内访问速度</td><td class="ours"><span class="y">快</span>（国内 CDN）</td><td><span class="n">慢</span></td><td><span class="p">一般</span>（海外服务）</td><td><span class="y">快</span></td><td><span class="y">取决于部署</span></td></tr>
+        <tr><td>包内容加密</td><td class="ours"><span class="y">✓ 每版本独立密钥</span></td><td><span class="n">✗</span></td><td><span class="n">✗</span>（只签名）</td><td><span class="n">✗</span></td><td><span class="n">✗</span></td></tr>
+        <tr><td>强制签名防篡改</td><td class="ours"><span class="y">✓</span></td><td><span class="p">可选</span></td><td><span class="p">可选</span></td><td><span class="p">—</span></td><td><span class="p">可选</span></td></tr>
+        <tr><td>上线审批</td><td class="ours"><span class="y">✓</span></td><td><span class="n">✗</span></td><td><span class="n">✗</span></td><td><span class="n">✗</span></td><td><span class="n">✗</span></td></tr>
+        <tr><td>提交代码自动打包</td><td class="ours"><span class="y">✓ 推送即打包 + 网页触发</span></td><td><span class="n">✗</span></td><td><span class="y">✓</span>（EAS 工作流）</td><td><span class="n">✗</span></td><td><span class="n">✗</span></td></tr>
+        <tr><td>灰度发布</td><td class="ours"><span class="y">✓ 比例 + 白名单</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td></tr>
+        <tr><td>崩溃自动回滚</td><td class="ours"><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td></tr>
+        <tr><td>单设备排查</td><td class="ours"><span class="y">✓</span></td><td><span class="n">✗</span></td><td><span class="p">有限</span></td><td><span class="p">有限</span></td><td><span class="n">✗</span></td></tr>
+        <tr><td>多品牌隔离</td><td class="ours"><span class="y">✓ 独立密钥与通道</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td></tr>
+        <tr><td>差量更新（省流量）</td><td class="ours"><span class="p">规划中</span></td><td><span class="y">✓</span></td><td><span class="p">部分</span></td><td><span class="y">✓ 强项</span></td><td><span class="y">✓</span></td></tr>
+        <tr><td>不依赖 Expo 框架</td><td class="ours"><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="n">需接入 Expo 模块</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td></tr>
+      </tbody>
+    </table>
+    <p class="note">说明：其他平台信息基于公开资料整理，各平台功能与价格可能已有更新，正式选型前建议以官方最新文档为准。</p>
+  </section>
+
+  <!-- 短板 -->
+  <section id="gap">
+    <h2>当前短板与应对</h2>
+    <p class="sub">如实列出，避免上线后才发现。</p>
+    <div class="grid g3">
+      <div class="card"><h3>暂无差量更新</h3><p class="small">每次下发完整包，流量比差量方案大。计划在业务层完成后单独补充。</p></div>
+      <div class="card"><h3>Android 与 H5 待开发</h3><p class="small">目前只有 iOS 可用；阶段一完成后依次开发 Android 与 H5。</p></div>
+      <div class="card"><h3>需要运维投入</h3><p class="small">自建意味着要维护服务器、数据库与 CDN；服务无状态，可直接扩容。</p></div>
+    </div>
+  </section>
+
+  <!-- 路线图 -->
+  <section id="roadmap">
+    <h2>实施路线</h2>
+    <p class="sub">共 11 个批次、3 个阶段；目前已完成第 1 批，下一步是数据层。</p>
+    <div class="phase">
+      <div class="head"><h3>阶段一：提交代码即自动发布</h3><span class="small">完成后：推送到指定分支即自动打包发到测试通道</span></div>
+      <div class="batches" style="grid-template-columns: repeat(6, 1fr);">
+        <div class="batch done"><span class="s">1 · 已完成</span><b>服务端基础设施</b></div>
+        <div class="batch next"><span class="s">2 · 下一步</span><b>数据层</b></div>
+        <div class="batch"><span class="s">3 · 待开发</span><b>业务层</b></div>
+        <div class="batch"><span class="s">4 · 待开发</span><b>接口与部署</b></div>
+        <div class="batch"><span class="s">5 · 待开发</span><b>发布命令</b></div>
+        <div class="batch"><span class="s">6 · 待开发</span><b>GitLab 流水线</b></div>
+      </div>
+    </div>
+    <div class="phase">
+      <div class="head"><h3>阶段二：三端扩展</h3><span class="small">完成后：iOS、Android、H5 统一发布</span></div>
+      <div class="batches" style="grid-template-columns: repeat(2, 1fr);">
+        <div class="batch"><span class="s">7 · 待开发</span><b>Android SDK</b></div>
+        <div class="batch"><span class="s">8 · 待开发</span><b>H5 灰度发布</b></div>
+      </div>
+    </div>
+    <div class="phase">
+      <div class="head"><h3>阶段三：网页控制</h3><span class="small">完成后：网页点打包、审批、灰度、看数据</span></div>
+      <div class="batches" style="grid-template-columns: repeat(4, 1fr);">
+        <div class="batch"><span class="s">9 · 待开发</span><b>控制台：打包与发布</b></div>
+        <div class="batch"><span class="s">10 · 待开发</span><b>账号权限与审批</b></div>
+        <div class="batch"><span class="s">11 · 待开发</span><b>统计与设备排查</b></div>
+        <div class="batch"><span class="s">规划中</span><b>差量更新</b></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 待决策 -->
+  <section id="decide">
+    <h2>需要确认</h2>
+    <div class="grid g4">
+      <div class="card"><h3>产品清单</h3><p class="small">首批接入哪些产品、品牌与 H5 站点？</p></div>
+      <div class="card"><h3>云厂商</h3><p class="small">包文件存储使用阿里云 OSS 还是腾讯云 COS？</p></div>
+      <div class="card"><h3>H5 部署</h3><p class="small">现有 H5 部署在哪里，入口能否交给平台接管？</p></div>
+      <div class="card"><h3>数据保留</h3><p class="small">设备上报数据保留多久？建议 90 天。</p></div>
+    </div>
+  </section>
+
+  <footer>热更新平台方案介绍 · 2026 年 10 月</footer>
+</div>
+<script>
+  // 页面动画：进场渐显、发布流程逐步点亮、灰度与回退演示；系统设置「减弱动态效果」时全部关闭
+  (function () {
+    var isReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    /** 进场渐显：同一父元素内的子项依次延迟出现 */
+    function setupReveal() {
+      var targets = document.querySelectorAll('section > h2, section > .sub, .card, .step, tbody tr, .batch, .stop');
+      targets.forEach(function (element) {
+        var index = Array.prototype.indexOf.call(element.parentNode.children, element);
+        element.classList.add('reveal');
+        element.style.transitionDelay = (index % 8) * 70 + 'ms';
+      });
+      if (!('IntersectionObserver' in window)) {
+        targets.forEach(function (element) { element.classList.add('in'); });
+        return;
+      }
+      var observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('in');
+            observer.unobserve(entry.target);
+          }
+        });
+      }, {threshold: 0.12});
+      targets.forEach(function (element) { observer.observe(element); });
+    }
+
+    /** 发布流程：按顺序点亮每一步，进度条与圆点跟随 */
+    function setupFlow() {
+      var steps = document.querySelectorAll('.flow .step');
+      var bar = document.querySelector('.track .bar');
+      var dot = document.querySelector('.track .dot');
+      var current = 0;
+      function render() {
+        steps.forEach(function (step, index) {
+          step.classList.toggle('active', index === current);
+          step.classList.toggle('passed', index < current);
+        });
+        var position = ((current + 0.5) / steps.length) * 100 + '%';
+        bar.style.width = position;
+        dot.style.left = position;
+      }
+      render();
+      setInterval(function () {
+        current = (current + 1) % steps.length;
+        render();
+      }, 1600);
+    }
+
+    /** 灰度与回退演示：10% → 50% → 100% → 发现问题 → 一键回退，循环播放 */
+    function setupRolloutDemo() {
+      var deviceCount = 100;
+      var container = document.getElementById('devices');
+      var stage = document.getElementById('demoStage');
+      var desc = document.getElementById('demoDesc');
+      var phaseTags = document.querySelectorAll('#demoPhases span');
+      var devices = [];
+      for (var i = 0; i < deviceCount; i++) {
+        devices.push(document.createElement('i'));
+        container.appendChild(devices[i]);
+      }
+      var order = devices.map(function (_, index) { return index; }).sort(function () { return Math.random() - 0.5; });
+      var scenes = [
+        {stage: '准备发布', desc: '审批通过，开始灰度放量', percent: 0, mode: 'new', phase: -1},
+        {stage: '灰度 10%', desc: '先让少量用户收到新版本，观察安装与崩溃数据', percent: 10, mode: 'new', phase: 0},
+        {stage: '灰度 50%', desc: '数据正常，扩大到一半用户', percent: 50, mode: 'new', phase: 1},
+        {stage: '全量 100%', desc: '所有用户收到新版本', percent: 100, mode: 'new', phase: 2},
+        {stage: '发现问题', desc: '监控到异常，负责人在网页点「禁用」，无需审批', percent: 100, mode: 'new', phase: 3, isWarn: true},
+        {stage: '一键回退完成', desc: '设备下次检查更新时自动回到上一个可用版本', percent: 100, mode: 'back', phase: 4}
+      ];
+      var sceneIndex = 0;
+      function render() {
+        var scene = scenes[sceneIndex];
+        var updatedCount = Math.round(deviceCount * scene.percent / 100);
+        stage.textContent = scene.stage;
+        stage.classList.toggle('warn', Boolean(scene.isWarn));
+        desc.textContent = scene.desc;
+        phaseTags.forEach(function (tag, index) {
+          tag.classList.toggle('on', index <= scene.phase);
+          tag.classList.toggle('warn', index === 3 && scene.phase >= 3);
+        });
+        order.forEach(function (deviceIndex, rank) {
+          var device = devices[deviceIndex];
+          var isUpdated = rank < updatedCount;
+          device.style.transitionDelay = isUpdated ? (rank % 25) * 12 + 'ms' : '0ms';
+          device.className = isUpdated ? scene.mode : '';
+        });
+      }
+      render();
+      setInterval(function () {
+        sceneIndex = (sceneIndex + 1) % scenes.length;
+        render();
+      }, 2200);
+    }
+
+    try {
+      if (isReducedMotion) {
+        setupRolloutDemo();
+        return;
+      }
+      setupReveal();
+      setupFlow();
+      setupRolloutDemo();
+    } catch (error) {
+      console.error('[presentation] 动画初始化失败', {message: error && error.message});
+      document.querySelectorAll('.reveal').forEach(function (element) { element.classList.add('in'); });
+    }
+  })();
+</script>
+</body>
+</html>
